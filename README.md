@@ -1,12 +1,12 @@
-# 🥪 SalvaBajón 🇨🇱
+# 🥪 Bajonero 🇨🇱
 
 <p align="center">
-  <img src="logo.jpg" alt="SalvaBajón Logo" width="220" style="border-radius: 28px;" />
+  <img src="logo.jpg" alt="Bajonero Logo" width="220" style="border-radius: 28px;" />
 </p>
 
 <p align="center">
   <b>El mapa colaborativo definitivo del bajón callejero en Chile</b><br>
-  <i>Handrolls, Completos Italianos, Sopaipillas y Opciones Saludables en las 16 regiones de Chile.</i>
+  <i>Handrolls, Completos Italianos, Sopaipillas y Opciones Vegetarianas en las 16 regiones de Chile.</i>
 </p>
 
 ---
