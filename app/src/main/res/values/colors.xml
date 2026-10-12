@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_orange">#EA580C</color>
+    <color name="brand_amber">#D97706</color>
+    <color name="brand_green">#059669</color>
+    <color name="stone_900">#1C1917</color>
+    <color name="stone_700">#44403C</color>
+    <color name="stone_100">#F5F5F4</color>
+    <color name="white">#FFFFFF</color>
+</resources>

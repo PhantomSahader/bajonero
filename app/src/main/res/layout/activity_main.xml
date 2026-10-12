@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0C0A09">
+
+    <!-- WebView Principal que renderiza la App -->
+    <WebView
+        android:id="@+id/webView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Barra de progreso discreta para cargas web -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_gravity="top"
+        android:indeterminate="true"
+        android:progressTint="#EA580C"
+        android:visibility="gone" />
+
+    <!-- PANTALLA DE SPLASH ANIMADA NATIVA -->
+    <RelativeLayout
+        android:id="@+id/splashContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#0C0A09"
+        android:clickable="true"
+        android:focusable="true">
+
+        <LinearLayout
+            android:id="@+id/splashContent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <!-- Contenedor del Logo con Resplandor -->
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content">
+
+                <!-- Resplandor Pulsante de Fondo -->
+                <View
+                    android:id="@+id/splashGlow"
+                    android:layout_width="140dp"
+                    android:layout_height="140dp"
+                    android:layout_gravity="center"
+                    android:alpha="0.3"
+                    android:background="@drawable/bg_splash_glow" />
+
+                <!-- Logo Circular Oficial de SalvaBajón -->
+                <ImageView
+                    android:id="@+id/splashLogo"
+                    android:layout_width="110dp"
+                    android:layout_height="110dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="@string/app_name"
+                    android:elevation="8dp"
+                    android:src="@drawable/splash_logo" />
+            </FrameLayout>
+
+            <!-- Título de la App -->
+            <TextView
+                android:id="@+id/splashTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="SalvaBajón"
+                android:textColor="#FFFFFF"
+                android:textSize="28sp"
+                android:textStyle="bold" />
+
+            <!-- Subtítulo Chileno -->
+            <TextView
+                android:id="@+id/splashSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:letterSpacing="0.05"
+                android:text="🇨🇱 Street Food Radar en Todo Chile"
+                android:textColor="#F97316"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <!-- Indicador sutil de carga animado -->
+            <ProgressBar
+                android:id="@+id/splashLoadingIndicator"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginTop="28dp"
+                android:indeterminateTint="#F97316" />
+        </LinearLayout>
+
+        <!-- Pie de página con créditos -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="24dp"
+            android:text="Handrolls • Completos • Sopaipillas"
+            android:textColor="#78716C"
+            android:textSize="11sp" />
+
+    </RelativeLayout>
+
+</FrameLayout>

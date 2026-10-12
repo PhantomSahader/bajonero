@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>SalvaBajón Chile - El Radar del Bajón Callejero</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fff7ed',
+              100: '#ffedd5',
+              500: '#f97316',
+              600: '#ea580c',
+              700: '#c2410c',
+            },
+            healthy: {
+              50: '#f0fdf4',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+            },
+            student: {
+              50: '#eff6ff',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          boxShadow: {
+            'floating': '0 20px 40px -15px rgba(0, 0, 0, 0.25)',
+            'native': '0 10px 30px -10px rgba(0,0,0,0.18)',
+            'glow-student': '0 0 25px rgba(37, 99, 235, 0.45)',
+            'glow-healthy': '0 0 20px rgba(22, 163, 74, 0.35)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+  <!-- Font Awesome & Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #map {
+      height: 100vh;
+      width: 100vw;
+      z-index: 10;
+    }
+    .custom-marker-pin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      color: white;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.32);
+      border: 3px solid #ffffff;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .pin-handroll { background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); }
+    .pin-completo { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); }
+    .pin-sopaipilla { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+    .pin-healthy { background: linear-gradient(135deg, #22c55e 0%, #15803d 100%) !important; }
+
+    .custom-marker-pin:hover, .custom-marker-pin.active {
+      transform: scale(1.24) translateY(-4px);
+      box-shadow: 0 14px 26px rgba(0,0,0,0.5);
+    }
+    .pulse-ring {
+      position: absolute;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      animation: pulseAnimation 2s infinite ease-out;
+      pointer-events: none;
+    }
+    .pulse-handroll { background: rgba(249, 115, 22, 0.4); }
+    .pulse-completo { background: rgba(239, 68, 68, 0.4); }
+    .pulse-sopaipilla { background: rgba(245, 158, 11, 0.45); }
+    .pulse-healthy { background: rgba(34, 197, 94, 0.5) !important; }
+
+    @keyframes pulseAnimation {
+      0% { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+<body class="h-full w-full overflow-hidden bg-stone-900 select-none">
+
+  <!-- ========================================================================= -->
+  <!-- PANEL LATERAL DE FILTROS -->
+  <!-- ========================================================================= -->
+  <aside id="filterPanel" class="fixed top-0 bottom-0 left-0 z-30 w-full sm:w-96 bg-white/95 backdrop-blur-xl shadow-2xl border-r border-stone-200/80 flex flex-col transition-transform duration-300 -translate-x-full sm:translate-x-0">
+    
+    <!-- Encabezado del Panel -->
+    <div class="p-5 border-b border-stone-100 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="logo.jpg" alt="SalvaBajón Logo" class="w-11 h-11 rounded-2xl object-cover shadow-md border border-amber-200">
+        <div>
+          <h1 class="text-base font-extrabold text-stone-900 leading-tight">SalvaBajón</h1>
+          <p class="text-xs text-stone-500 font-medium">Comida callejera en todo Chile</p>
+        </div>
+      </div>
+      <button id="btnCloseFilters" class="sm:hidden w-9 h-9 rounded-xl bg-stone-100 text-stone-500 flex items-center justify-center">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- Contenido de Filtros -->
+    <div class="flex-1 overflow-y-auto p-5 space-y-4">
+
+      <!-- CARACTERÍSTICA KILLER 1: TOGGLE 'ALTERNATIVA SANA' -->
+      <div class="bg-gradient-to-r from-emerald-50 to-green-50/80 p-3.5 rounded-2xl border border-emerald-200/80 shadow-sm">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-xs shadow-sm">
+              <i class="fa-solid fa-seedling"></i>
+            </div>
+            <div>
+              <span class="text-xs font-extrabold text-emerald-950 block leading-tight">Alternativa Sana</span>
+              <span class="text-[10px] text-emerald-700 font-medium leading-tight">Veg, integral o combo sin azúcar</span>
+            </div>
+          </div>
+
+          <!-- Switch Toggle Moderno -->
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="toggleHealthy" class="sr-only peer">
+            <div class="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Categorías de Comida -->
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">
+          ¿Qué se te antoja hoy?
+        </label>
+        <div class="grid grid-cols-2 gap-2" id="categoryGroup">
+          <button type="button" data-category="ALL" class="cat-btn active py-2 px-3 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 bg-stone-900 text-white border-stone-900 shadow-sm col-span-2">
+            <i class="fa-solid fa-border-all text-xs"></i>
+            <span>Todos los Bajones</span>
+          </button>
+          
+          <button type="button" data-category="HANDROLL" class="cat-btn py-2 px-3 rounded-xl text-xs font-bold border transition flex items-center gap-2 bg-white text-stone-700 border-stone-200 hover:border-brand-500">
+            <i class="fa-solid fa-fish text-sm text-brand-600"></i>
+            <span>Handrolls</span>
+          </button>
+
+          <button type="button" data-category="COMPLETO" class="cat-btn py-2 px-3 rounded-xl text-xs font-bold border transition flex items-center gap-2 bg-white text-stone-700 border-stone-200 hover:border-red-500">
+            <i class="fa-solid fa-hotdog text-sm text-red-500"></i>
+            <span>Completos</span>
+          </button>
+
+          <button type="button" data-category="SOPAIPILLA" class="cat-btn py-2 px-3 rounded-xl text-xs font-bold border transition flex items-center gap-2 bg-white text-stone-700 border-stone-200 hover:border-amber-500 col-span-2">
+            <i class="fa-solid fa-cookie-bite text-sm text-amber-500"></i>
+            <span>Sopaipillas & Mostaza</span>
+          </button>
+
+          <!-- OPCIÓN VEGETARIANA / VEGGIE DIRECTA -->
+          <button type="button" id="btnFilterVegetariano" class="py-2.5 px-3 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-2 bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 col-span-2 shadow-sm active:scale-98">
+            <i class="fa-solid fa-seedling text-emerald-600 text-sm"></i>
+            <span>🥦 Solo Opciones Vegetarianas</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Slider de Precio Máximo -->
+      <div id="priceSliderContainer" class="bg-stone-50 p-3.5 rounded-2xl border border-stone-200/80 transition">
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="text-xs font-bold uppercase tracking-wider text-stone-500">
+            Presupuesto Máximo
+          </label>
+          <span id="priceDisplay" class="text-xs font-extrabold text-brand-600 bg-orange-100 px-2 py-0.5 rounded-lg">
+            $10.000
+          </span>
+        </div>
+        <input 
+          id="priceSlider" 
+          type="range" 
+          min="500" 
+          max="10000" 
+          step="500" 
+          value="10000"
+          class="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-brand-600"
+        >
+        <div class="flex justify-between text-[10px] text-stone-400 font-semibold mt-1">
+          <span>$500</span>
+          <span>$5.000</span>
+          <span>$10.000+</span>
+        </div>
+      </div>
+
+      <!-- Selectores Región y Comuna -->
+      <div class="space-y-2">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-1">Región</label>
+          <div class="relative">
+            <select id="regionSelect" class="w-full bg-stone-50 text-stone-800 text-xs font-semibold py-2 px-3 pr-8 rounded-xl border border-stone-200 outline-none appearance-none cursor-pointer focus:border-brand-500 transition">
+              <option value="all">🇨🇱 Todas las 16 Regiones</option>
+            </select>
+            <i class="fa-solid fa-chevron-down absolute right-3 top-3 text-[10px] text-stone-400 pointer-events-none"></i>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-1">Comuna</label>
+          <div class="relative">
+            <select id="comunaSelect" class="w-full bg-stone-50 text-stone-800 text-xs font-semibold py-2 px-3 pr-8 rounded-xl border border-stone-200 outline-none appearance-none cursor-pointer focus:border-brand-500 transition">
+              <option value="all">📍 Todas las Comunas</option>
+            </select>
+            <i class="fa-solid fa-chevron-down absolute right-3 top-3 text-[10px] text-stone-400 pointer-events-none"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contador de Resultados -->
+      <div class="bg-brand-50/70 p-3 rounded-2xl border border-brand-100 flex items-center justify-between">
+        <span class="text-xs font-medium text-stone-600">Puntos en pantalla:</span>
+        <span id="resultsCount" class="text-xs font-extrabold text-brand-700 bg-white px-2.5 py-0.5 rounded-full shadow-sm">
+          Cargando...
+        </span>
+      </div>
+
+    </div>
+
+    <!-- Pie del Panel -->
+    <div class="p-3.5 border-t border-stone-100 bg-stone-50/50 flex flex-col gap-2">
+      <!-- BOTÓN AGREGAR UN LOCAL EN LA BARRA LATERAL -->
+      <button id="btnSidebarAddSpot" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-brand-600 to-amber-500 hover:from-brand-700 hover:to-amber-600 text-white text-xs font-extrabold shadow-md flex items-center justify-center gap-2 active:scale-95 transition">
+        <i class="fa-solid fa-plus-circle text-sm"></i>
+        <span>Agregar un local</span>
+      </button>
+
+      <div class="flex gap-2">
+        <button id="btnResetFilters" class="flex-1 py-2 px-3 rounded-xl border border-stone-200 bg-white text-xs font-bold text-stone-600 hover:bg-stone-50 active:scale-98 transition">
+          Restablecer
+        </button>
+        <button id="btnMyLocation" class="py-2 px-3.5 rounded-xl bg-brand-600 text-white text-xs font-bold shadow-md hover:bg-brand-700 active:scale-98 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-location-crosshairs"></i> Mi Zona
+        </button>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ========================================================================= -->
+  <!-- BOTÓN FLOTANTE SUPERIOR DERECHO: 'MODO ESTUDIANTE' UNIVERSAL -->
+  <!-- ========================================================================= -->
+  <div class="fixed top-4 right-4 z-20 flex flex-col items-end gap-2">
+    <button id="btnStudentMode" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold px-3 py-2.5 sm:px-4 sm:py-3 rounded-2xl shadow-glow-student flex items-center gap-2 active:scale-95 transition border border-white/30 backdrop-blur-md">
+      <div class="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center text-sm flex-shrink-0">
+        <i class="fa-solid fa-graduation-cap"></i>
+      </div>
+      <div class="text-left">
+        <span class="block text-xs uppercase tracking-wider leading-none font-bold text-blue-100">Modo Estudiante</span>
+        <span id="studentModeStatus" class="text-[10px] font-medium leading-tight text-white opacity-90 truncate max-w-[140px] sm:max-w-none block">&lt; $3.000 cerca de Ues</span>
+      </div>
+    </button>
+
+    <!-- Banner Informativo del Modo Estudiante (Aparece cuando está activo) -->
+    <div id="studentModeBanner" class="hidden bg-blue-900/90 backdrop-blur-md text-white text-xs py-1.5 px-3 rounded-xl shadow-lg border border-blue-400/30 flex items-center gap-2 animate-pulse">
+      <i class="fa-solid fa-circle-check text-blue-300"></i>
+      <span>Radio Universitario 1 km activo (&lt; $3.000)</span>
+      <button id="btnExitStudent" class="ml-1 text-blue-200 hover:text-white underline text-[10px]">Salir</button>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- BOTÓN FLOTANTE SUPERIOR IZQUIERDO: ABRIR FILTROS EN MÓVILES -->
+  <!-- ========================================================================= -->
+  <button id="btnOpenMobileFilters" class="sm:hidden fixed top-4 left-4 z-20 bg-white/95 backdrop-blur-md text-stone-800 font-bold px-3.5 py-2.5 rounded-2xl shadow-native border border-black/5 flex items-center gap-2 active:scale-95 transition">
+    <i class="fa-solid fa-sliders text-brand-600"></i>
+    <span class="text-xs">Filtros</span>
+  </button>
+
+  <!-- ========================================================================= -->
+  <!-- BOTÓN FLOTANTE INFERIOR DERECHO: AGREGAR UN LOCAL (FAB Ergonómico Separado) -->
+  <!-- ========================================================================= -->
+  <button id="btnFloatingAddSpot" class="fixed bottom-6 right-4 sm:right-8 z-20 bg-gradient-to-r from-brand-600 to-amber-500 hover:from-brand-700 hover:to-amber-600 text-white font-extrabold px-4 py-3 rounded-2xl shadow-floating flex items-center gap-2 active:scale-95 transition border border-white/30 backdrop-blur-md">
+    <div class="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-xs">
+      <i class="fa-solid fa-plus"></i>
+    </div>
+    <span class="text-xs font-bold tracking-wide">Agregar local</span>
+  </button>
+
+  <!-- ========================================================================= -->
+  <!-- CONTENEDOR DEL MAPA (Leaflet con ArcGIS) -->
+  <!-- ========================================================================= -->
+  <div id="map"></div>
+
+  <!-- ========================================================================= -->
+  <!-- TARJETA FLOTANTE DE INFORMACIÓN (Bottom Card) -->
+  <!-- ========================================================================= -->
+  <div id="bottomCardContainer" class="fixed bottom-0 left-0 right-0 sm:left-96 z-30 p-4 pb-6 flex justify-center pointer-events-none transition-all duration-300">
+    <div id="spotCard" class="hidden pointer-events-auto w-full max-w-md bg-white/95 backdrop-blur-lg rounded-3xl p-5 shadow-floating border border-white/60 relative animate-slide-up">
+      
+      <button id="btnCloseSpotCard" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-500 flex items-center justify-center text-sm transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="flex items-center gap-1.5 mb-2 flex-wrap">
+        <span id="spotCategoryBadge" class="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-orange-100 text-brand-700">
+          Handroll
+        </span>
+        <span id="spotHealthyBadge" class="hidden text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 items-center gap-1">
+          <i class="fa-solid fa-leaf text-[10px]"></i> Opción Sana
+        </span>
+        <span id="spotComunaBadge" class="text-xs font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-700">
+          Providencia
+        </span>
+        <div class="flex items-center text-amber-500 text-xs font-bold gap-1 ml-auto mr-8">
+          <i class="fa-solid fa-star"></i>
+          <span id="spotRating">4.8</span>
+        </div>
+      </div>
+
+      <h2 id="spotName" class="text-xl font-bold text-stone-900 tracking-tight leading-snug">
+        Nombre del Local
+      </h2>
+      <p id="spotAddress" class="text-xs text-stone-500 font-medium flex items-center gap-1 mt-0.5 mb-3">
+        <i class="fa-solid fa-location-dot text-brand-500"></i>
+        <span>Dirección</span>
+      </p>
+
+      <div class="flex items-center justify-between bg-stone-50 rounded-2xl p-3 mb-4 border border-stone-100">
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">Formato / Especialidad</span>
+          <span id="spotQuantity" class="text-xs font-bold text-stone-800">1 unidad XL</span>
+        </div>
+        <div class="text-right">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">Precio Promedio</span>
+          <span id="spotPrice" class="text-lg font-extrabold text-brand-600">$4.500</span>
+        </div>
+      </div>
+
+      <button id="btnRouteGps" class="w-full bg-gradient-to-r from-brand-600 to-amber-500 hover:from-brand-700 hover:to-amber-600 text-white font-bold py-3 px-4 rounded-2xl shadow-md flex items-center justify-center gap-2 active:scale-98 transition text-sm">
+        <i class="fa-solid fa-diamond-turn-right"></i>
+        <span>Cómo llegar con GPS</span>
+      </button>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- EMPTY STATE ELEGANTE FLOTANTE (0 Resultados con Tailwind) -->
+  <!-- ========================================================================= -->
+  <div id="emptyStateContainer" class="hidden pointer-events-none fixed inset-0 sm:left-96 z-30 flex items-center justify-center p-4">
+    <div class="pointer-events-auto max-w-sm w-full bg-white/95 backdrop-blur-xl rounded-3xl p-6 sm:p-7 shadow-floating border border-stone-200/90 text-center animate-slide-up transition-all">
+      
+      <!-- Ícono Ilustrativo Amigable -->
+      <div id="emptyStateIconBox" class="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-3xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-3xl sm:text-4xl shadow-inner mb-4 border border-emerald-100 ring-4 ring-emerald-50/50">
+        <span id="emptyStateEmoji">🥦</span>
+      </div>
+
+      <!-- Título Dinámico -->
+      <h3 id="emptyStateTitle" class="text-base sm:text-lg font-extrabold text-stone-900 tracking-tight leading-snug mb-2">
+        ¡Ups! Aún no tenemos opciones vegetarianas mapeadas en esta región. 🥦
+      </h3>
+
+      <!-- Subtítulo / Llamado Comunitario -->
+      <p id="emptyStateSubtitle" class="text-xs sm:text-sm text-stone-600 font-medium leading-relaxed mb-6">
+        ¿Conoces algún carrito o local aquí? ¡Sé el primero en agregarlo y ayuda a la comunidad!
+      </p>
+
+      <!-- Botones de Acción -->
+      <div class="flex flex-col gap-2">
+        <!-- OPCIÓN 1: AGREGAR UN LOCAL -->
+        <button id="btnEmptyAddSpot" class="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-brand-600 to-amber-500 hover:from-brand-700 hover:to-amber-600 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-orange-500/25 active:scale-95 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-plus-circle text-base"></i>
+          <span>Agregar un local</span>
+        </button>
+
+        <!-- OPCIÓN 2: SUGERIR UN LOCAL -->
+        <button id="btnEmptySuggestSpot" class="w-full py-2.5 px-4 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 active:scale-95">
+          <i class="fa-solid fa-lightbulb text-amber-600"></i>
+          <span>Sugerir un local</span>
+        </button>
+
+        <!-- OPCIÓN 3: QUITAR FILTROS -->
+        <button id="btnClearFiltersEmpty" class="w-full py-2 px-4 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs transition flex items-center justify-center gap-1.5 active:scale-95">
+          <i class="fa-solid fa-filter-circle-xmark text-xs text-stone-500"></i>
+          <span>Quitar filtros</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL DE DIÁLOGO: SUGERIR / AGREGAR UN LOCAL -->
+  <!-- ========================================================================= -->
+  <div id="suggestModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-100 relative animate-slide-up">
+      <button id="btnCloseSuggestModal" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-500 flex items-center justify-center text-sm transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand-600 to-amber-500 text-white flex items-center justify-center text-lg shadow-sm">
+          <i class="fa-solid fa-store"></i>
+        </div>
+        <div>
+          <h2 class="text-base font-extrabold text-stone-900 leading-tight">Sugerir Nuevo Local</h2>
+          <p class="text-xs text-stone-500 font-medium">Suma una picada o carrito al radar callejero</p>
+        </div>
+      </div>
+
+      <form id="suggestSpotForm" class="space-y-3.5">
+        <div>
+          <label class="block text-xs font-bold text-stone-700 mb-1">Nombre del local o carrito *</label>
+          <input type="text" id="newSpotName" required placeholder="Ej: Handroll Express / Tío Pepe" class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-bold text-stone-700 mb-1">Categoría *</label>
+            <select id="newSpotCategory" class="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="HANDROLL">Handroll</option>
+              <option value="COMPLETO">Completo</option>
+              <option value="SOPAIPILLA">Sopaipilla</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-stone-700 mb-1">Precio Aprox ($) *</label>
+            <input type="number" id="newSpotPrice" required min="500" max="20000" step="100" value="3000" class="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-stone-700 mb-1">Dirección / Esquina o Referencia *</label>
+          <input type="text" id="newSpotAddress" required placeholder="Ej: Metro Los Leones salida sur / Prat 450" class="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none">
+        </div>
+
+        <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200/80 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-leaf text-emerald-600 text-sm"></i>
+            <span class="text-xs font-bold text-emerald-950">¿Tiene opciones vegetarianas o sanas?</span>
+          </div>
+          <input type="checkbox" id="newSpotHealthy" class="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500">
+        </div>
+
+        <div class="pt-2">
+          <button type="submit" class="w-full py-3 rounded-2xl bg-gradient-to-r from-brand-600 to-amber-500 text-white font-extrabold text-xs shadow-md hover:from-brand-700 hover:to-amber-600 active:scale-98 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>Enviar sugerencia a la comunidad</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast de Notificación / Agradecimiento -->
+  <div id="toastNotification" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-stone-900/95 text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3 backdrop-blur-md text-xs font-bold transition-all">
+    <i class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+    <span id="toastText">¡Gracias! Revisaremos tu sugerencia para sumarla al radar 🚀</span>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- ========================================================================= -->
+  <!-- LÓGICA JAVASCRIPT REACTIVA -->
+  <!-- ========================================================================= -->
+  <script>
+    // 1. REGIONES Y COMUNAS
+    const regionesChile = [
+      { nombre: "Arica y Parinacota", comunas: ["Arica", "Camarones", "Putre", "General Lagos"] },
+      { nombre: "Tarapacá", comunas: ["Iquique", "Alto Hospicio", "Pozo Almonte", "Pica", "Huara"] },
+      { nombre: "Antofagasta", comunas: ["Antofagasta", "Calama", "Mejillones", "Tocopilla", "San Pedro de Atacama"] },
+      { nombre: "Atacama", comunas: ["Copiapó", "Caldera", "Vallenar", "Chañaral", "Huasco"] },
+      { nombre: "Coquimbo", comunas: ["La Serena", "Coquimbo", "Ovalle", "Illapel", "Vicuña", "Los Vilos"] },
+      { nombre: "Valparaíso", comunas: ["Valparaíso", "Viña del Mar", "Concón", "Quilpué", "Villa Alemana", "Quillota", "San Antonio"] },
+      {
+        nombre: "Metropolitana de Santiago",
+        comunas: [
+          "Santiago", "Providencia", "Las Condes", "Ñuñoa", "Maipú", "La Florida", 
+          "Puente Alto", "Estación Central", "Recoleta", "Independencia", "San Miguel", 
+          "Macul", "Peñalolén", "La Reina", "Vitacura", "Lo Barnechea", "Quilicura"
+        ]
+      },
+      { nombre: "Libertador General Bernardo O'Higgins", comunas: ["Rancagua", "Machalí", "Rengo", "San Fernando", "Pichilemu"] },
+      { nombre: "Maule", comunas: ["Talca", "Curicó", "Linares", "Constitución", "Cauquenes"] },
+      { nombre: "Ñuble", comunas: ["Chillán", "Chillán Viejo", "San Carlos", "Bulnes", "Quirihue"] },
+      { nombre: "Biobío", comunas: ["Concepción", "San Pedro de la Paz", "Talcahuano", "Chiguayante", "Los Ángeles", "Coronel"] },
+      { nombre: "La Araucanía", comunas: ["Temuco", "Padre Las Casas", "Villarrica", "Pucón", "Angol"] },
+      { nombre: "Los Ríos", comunas: ["Valdivia", "Corral", "La Unión", "Panguipulli", "Río Bueno"] },
+      { nombre: "Los Lagos", comunas: ["Puerto Montt", "Puerto Varas", "Osorno", "Castro", "Ancud", "Frutillar"] },
+      { nombre: "Aysén", comunas: ["Coyhaique", "Puerto Aysén", "Chile Chico", "Cochrane"] },
+      { nombre: "Magallanes", comunas: ["Punta Arenas", "Puerto Natales", "Porvenir", "Cabo de Hornos"] }
+    ];
+
+    // 2. SEDES UNIVERSITARIAS DE REFERENCIA (Para el Modo Estudiante Universal)
+    const sedesUniversitarias = [
+      { nombre: "U. de Chile - Casa Central / FCFM Beauchef", lat: -33.4500, lng: -70.6620, comuna: "Santiago" },
+      { nombre: "U. de Concepción (Barrio Universitario / Plaza Perú)", lat: -36.8290, lng: -73.0480, comuna: "Concepción" },
+      { nombre: "PUC - Campus San Joaquín", lat: -33.4980, lng: -70.6130, comuna: "Macul" },
+      { nombre: "USACH - Estación Central", lat: -33.4505, lng: -70.6860, comuna: "Estación Central" },
+      { nombre: "U. de Valparaíso / PUCV - Av. Brasil", lat: -33.0450, lng: -71.6150, comuna: "Valparaíso" },
+      { nombre: "U. de La Frontera (UFRO) Temuco", lat: -38.7480, lng: -72.6170, comuna: "Temuco" },
+      { nombre: "U. Austral de Chile (UACh) Valdivia", lat: -39.8100, lng: -73.2510, comuna: "Valparaíso" },
+      { nombre: "U. de Antofagasta - Campus Coloso", lat: -23.7020, lng: -70.4190, comuna: "Antofagasta" }
+    ];
+
+    // 3. DATASET NACIONAL COMPLETO: HANDROLLS, COMPLETOS Y SOPAIPILLAS EN TODAS LAS REGIONES
+    const foodSpotsData = [
+      // === 1. ARICA Y PARINACOTA ===
+      { id: 1, name: "El Morro Handroll", category: "HANDROLL", region: "Arica y Parinacota", comuna: "Arica", address: "Paseo 21 de Mayo 410", base_price: 3900, quantity: "Handroll Pulpo Olivo", is_healthy_option: false, rating: 4.8, latitude: -18.4783, longitude: -70.3211 },
+      { id: 2, name: "Completos Chinchorro", category: "COMPLETO", region: "Arica y Parinacota", comuna: "Arica", address: "Av. Comandante San Martín 190", base_price: 2400, quantity: "Italiano Norteño", is_healthy_option: false, rating: 4.7, latitude: -18.4820, longitude: -70.3180 },
+      { id: 3, name: "Sopaipillas del Morro", category: "SOPAIPILLA", region: "Arica y Parinacota", comuna: "Arica", address: "Pie del Morro", base_price: 600, quantity: "Promo 3x$1.500 con Mostaza", is_healthy_option: false, rating: 4.9, latitude: -18.4800, longitude: -70.3240 },
+
+      // === 2. TARAPACÁ ===
+      { id: 4, name: "Cavancha Roll Spot", category: "HANDROLL", region: "Tarapacá", comuna: "Iquique", address: "Av. Arturo Prat 1680", base_price: 4200, quantity: "Atún Mango Crispy", is_healthy_option: false, rating: 4.7, latitude: -20.2285, longitude: -70.1448 },
+      { id: 5, name: "Fuente Iquiqueña", category: "COMPLETO", region: "Tarapacá", comuna: "Iquique", address: "Plaza Prat 520", base_price: 2600, quantity: "Italiano con Mayo Casera", is_healthy_option: false, rating: 4.8, latitude: -20.2135, longitude: -70.1510 },
+      { id: 6, name: "Sopaipillas de Playa Brava", category: "SOPAIPILLA", region: "Tarapacá", comuna: "Iquique", address: "Av. Santiago Polanco 2100", base_price: 600, quantity: "Sopaipas Calientitas Ají", is_healthy_option: false, rating: 4.8, latitude: -20.2450, longitude: -70.1380 },
+      { id: 7, name: "Hospicio Roll Fast", category: "HANDROLL", region: "Tarapacá", comuna: "Alto Hospicio", address: "Av. Los Álamos 3100", base_price: 2900, quantity: "Pollo Furai Estudiante", is_healthy_option: false, rating: 4.6, latitude: -20.2690, longitude: -70.1060 },
+
+      // === 3. ANTOFAGASTA ===
+      { id: 8, name: "La Portada Handrolls", category: "HANDROLL", region: "Antofagasta", comuna: "Antofagasta", address: "Av. Brasil 1950", base_price: 4500, quantity: "Crispy Salmón Furikake", is_healthy_option: false, rating: 4.8, latitude: -23.6509, longitude: -70.3975 },
+      { id: 9, name: "Completos Don Mauro Balneario", category: "COMPLETO", region: "Antofagasta", comuna: "Antofagasta", address: "Balneario Municipal", base_price: 2800, quantity: "Italiano Gigante Minero", is_healthy_option: false, rating: 4.7, latitude: -23.6680, longitude: -70.4040 },
+      { id: 10, name: "Sopaipas del Parque Brasil", category: "SOPAIPILLA", region: "Antofagasta", comuna: "Antofagasta", address: "Parque Brasil", base_price: 700, quantity: "Con Pebre y Mostaza", is_healthy_option: false, rating: 4.9, latitude: -23.6550, longitude: -70.3980 },
+      { id: 11, name: "Oasis Roll Calama", category: "HANDROLL", region: "Antofagasta", comuna: "Calama", address: "Calle Latorre 2100", base_price: 4300, quantity: "Camarón Tempura & Ciboulette", is_healthy_option: false, rating: 4.7, latitude: -22.4550, longitude: -68.9280 },
+
+      // === 4. ATACAMA ===
+      { id: 12, name: "Desierto Roll Copiapó", category: "HANDROLL", region: "Atacama", comuna: "Copiapó", address: "Los Carrera 720", base_price: 3800, quantity: "Pollo Teriyaki Queso", is_healthy_option: false, rating: 4.6, latitude: -27.3668, longitude: -70.3323 },
+      { id: 13, name: "Completos Plaza Copiapó", category: "COMPLETO", region: "Atacama", comuna: "Copiapó", address: "Chacabuco 450", base_price: 2500, quantity: "Italiano Tradicional", is_healthy_option: false, rating: 4.7, latitude: -27.3660, longitude: -70.3315 },
+      { id: 14, name: "Sopaipillas del Desierto", category: "SOPAIPILLA", region: "Atacama", comuna: "Copiapó", address: "Colipí con O'Higgins", base_price: 600, quantity: "Sopaipilla Crujiente", is_healthy_option: false, rating: 4.8, latitude: -27.3680, longitude: -70.3340 },
+
+      // === 5. COQUIMBO ===
+      { id: 15, name: "Faro Roll La Serena", category: "HANDROLL", region: "Coquimbo", comuna: "La Serena", address: "Av. del Mar 2200", base_price: 4300, quantity: "Camarón Furai & Cebollín", is_healthy_option: false, rating: 4.9, latitude: -29.9027, longitude: -71.2520 },
+      { id: 16, name: "Completos La Serena Centro", category: "COMPLETO", region: "Coquimbo", comuna: "La Serena", address: "Calle Prat 580", base_price: 2600, quantity: "Italiano con Palta Hass", is_healthy_option: false, rating: 4.8, latitude: -29.9030, longitude: -71.2480 },
+      { id: 17, name: "Sopaipas de La Recova", category: "SOPAIPILLA", region: "Coquimbo", comuna: "La Serena", address: "Mercado La Recova", base_price: 500, quantity: "Calabaza Frita con Ají", is_healthy_option: false, rating: 4.9, latitude: -29.9045, longitude: -71.2460 },
+      { id: 18, name: "Puerto Roll Coquimbo", category: "HANDROLL", region: "Coquimbo", comuna: "Coquimbo", address: "Costanera 850", base_price: 4400, quantity: "Locos & Queso Apanado", is_healthy_option: false, rating: 4.7, latitude: -29.9530, longitude: -71.3420 },
+
+      // === 6. VALPARAÍSO ===
+      { id: 19, name: "Valpo Handroll Station", category: "HANDROLL", region: "Valparaíso", comuna: "Viña del Mar", address: "1 Norte 840", base_price: 4600, quantity: "Salmón Ahumado Palta", is_healthy_option: false, rating: 4.8, latitude: -33.0153, longitude: -71.5500 },
+      { id: 20, name: "Valpo Handroll Veg & Fit", category: "HANDROLL", region: "Valparaíso", comuna: "Viña del Mar", address: "Plaza Vergara 120", base_price: 4200, quantity: "Handroll Palta & Nori Sin Freír", is_healthy_option: true, rating: 4.9, latitude: -33.0230, longitude: -71.5530 },
+      { id: 21, name: "Viña Hot Dog Station", category: "COMPLETO", region: "Valparaíso", comuna: "Viña del Mar", address: "Calle Valparaíso 650", base_price: 2700, quantity: "Italiano Porteño", is_healthy_option: false, rating: 4.7, latitude: -33.0240, longitude: -71.5520 },
+      { id: 22, name: "Cerro Alegre Rolls", category: "HANDROLL", region: "Valparaíso", comuna: "Valparaíso", address: "Urriola 380", base_price: 4400, quantity: "Spicy Tuna Sésamo", is_healthy_option: false, rating: 4.9, latitude: -33.0420, longitude: -71.6280 },
+      { id: 23, name: "Sopaipillas y Picadas del Puerto", category: "SOPAIPILLA", region: "Valparaíso", comuna: "Valparaíso", address: "Plaza Aníbal Pinto", base_price: 600, quantity: "Sopaipilla con Merkén", is_healthy_option: false, rating: 4.9, latitude: -33.0425, longitude: -71.6250 },
+      { id: 24, name: "Playa Amarilla Rolls", category: "HANDROLL", region: "Valparaíso", comuna: "Concón", address: "Av. Borgoño 22400", base_price: 4800, quantity: "Reineta Furai & Palta", is_healthy_option: false, rating: 4.8, latitude: -32.9230, longitude: -71.5170 },
+
+      // === 7. METROPOLITANA DE SANTIAGO ===
+      { id: 25, name: "Nori Nori Handroll Bar", category: "HANDROLL", region: "Metropolitana de Santiago", comuna: "Providencia", address: "Av. Andrés Bello 2425", base_price: 4990, quantity: "Salmón Trufado Panko", is_healthy_option: false, rating: 4.9, latitude: -33.4255, longitude: -70.6120 },
+      { id: 26, name: "Fuente Mardoqueo Bilbao", category: "COMPLETO", region: "Metropolitana de Santiago", comuna: "Providencia", address: "Av. Francisco Bilbao 2639", base_price: 3800, quantity: "Completo Gigante 25cm", is_healthy_option: false, rating: 4.9, latitude: -33.4350, longitude: -70.6030 },
+      { id: 27, name: "Tokyo Roll Station Centro", category: "HANDROLL", region: "Metropolitana de Santiago", comuna: "Santiago", address: "Monjitas 580", base_price: 3900, quantity: "Crispy Tuna Flameado", is_healthy_option: false, rating: 4.7, latitude: -33.4372, longitude: -70.6506 },
+      { id: 28, name: "Fuente Alemana Alameda", category: "COMPLETO", region: "Metropolitana de Santiago", comuna: "Santiago", address: "Alameda 58", base_price: 3600, quantity: "Dinámico / Doble Palta", is_healthy_option: false, rating: 4.9, latitude: -33.4378, longitude: -70.6358 },
+      { id: 29, name: "El Rincón del Completo U. Chile", category: "COMPLETO", region: "Metropolitana de Santiago", comuna: "Santiago", address: "San Diego 450", base_price: 2500, quantity: "Italiano Tradicional 22cm", is_healthy_option: false, rating: 4.8, latitude: -33.4420, longitude: -70.6540 },
+      { id: 30, name: "Completo Veggie & Integral Bellas Artes", category: "COMPLETO", region: "Metropolitana de Santiago", comuna: "Santiago", address: "Monjitas 420", base_price: 3200, quantity: "Pan Integral + Agua mineral", is_healthy_option: true, rating: 4.9, latitude: -33.4365, longitude: -70.6450 },
+      { id: 31, name: "Beauchef Handroll Express", category: "HANDROLL", region: "Metropolitana de Santiago", comuna: "Santiago", address: "Blanco Encalada 2050", base_price: 2900, quantity: "Handroll Pollo Estudiante", is_healthy_option: false, rating: 4.8, latitude: -33.4515, longitude: -70.6635 },
+      { id: 32, name: "Green Roll Barrio Italia", category: "HANDROLL", region: "Metropolitana de Santiago", comuna: "Ñuñoa", address: "Av. Italia 1420", base_price: 3800, quantity: "Tofu Salteado + Té Verde", is_healthy_option: true, rating: 4.8, latitude: -33.4485, longitude: -70.6270 },
+      { id: 33, name: "Completos Don Pepe Ñuñoa", category: "COMPLETO", region: "Metropolitana de Santiago", comuna: "Ñuñoa", address: "Av. Irarrázaval 1890", base_price: 2800, quantity: "Italiano con Mayo Casera", is_healthy_option: false, rating: 4.7, latitude: -33.4560, longitude: -70.6280 },
+      { id: 34, name: "Kuro Gourmet Rolls", category: "HANDROLL", region: "Metropolitana de Santiago", comuna: "Las Condes", address: "Isidora Goyenechea 3000", base_price: 6500, quantity: "Wagyu & Langostino", is_healthy_option: false, rating: 4.9, latitude: -33.4178, longitude: -70.6010 },
+      { id: 35, name: "Templo Roll Maipú", category: "HANDROLL", region: "Metropolitana de Santiago", comuna: "Maipú", address: "Av. Pajaritos 2800", base_price: 4500, quantity: "Handroll Gigante XL", is_healthy_option: false, rating: 4.8, latitude: -33.5110, longitude: -70.7570 },
+      { id: 36, name: "El Rey de la Sopaipilla Plaza Maipú", category: "SOPAIPILLA", region: "Metropolitana de Santiago", comuna: "Maipú", address: "Metro Plaza de Maipú", base_price: 500, quantity: "Sopaipilla Crujiente con Pebre", is_healthy_option: false, rating: 4.8, latitude: -33.5105, longitude: -70.7578 },
+      { id: 37, name: "Sopaipillas Tía Gladys Estación", category: "SOPAIPILLA", region: "Metropolitana de Santiago", comuna: "Estación Central", address: "Metro Estación Central", base_price: 600, quantity: "Promo 3x$1.500 con Mostaza", is_healthy_option: false, rating: 4.9, latitude: -33.4510, longitude: -70.6780 },
+      { id: 38, name: "Completos USACH Estudiante", category: "COMPLETO", region: "Metropolitana de Santiago", comuna: "Estación Central", address: "Matucana con Alameda", base_price: 2300, quantity: "Italiano Alumno", is_healthy_option: false, rating: 4.7, latitude: -33.4500, longitude: -70.6840 },
+      { id: 39, name: "Sopaipas Calientitas Bellavista", category: "SOPAIPILLA", region: "Metropolitana de Santiago", comuna: "Recoleta", address: "Pio Nono con Bellavista", base_price: 700, quantity: "Sopaipilla con Pebre Casero", is_healthy_option: false, rating: 4.8, latitude: -33.4345, longitude: -70.6355 },
+      { id: 40, name: "Sopaipillas Horneadas San Joaquín", category: "SOPAIPILLA", region: "Metropolitana de Santiago", comuna: "Macul", address: "Metro San Joaquín (PUC)", base_price: 1200, quantity: "Calabaza al Horno (Sin Fritura)", is_healthy_option: true, rating: 4.9, latitude: -33.4970, longitude: -70.6140 },
+
+      // === 8. O'HIGGINS ===
+      { id: 41, name: "Rancagua Roll House", category: "HANDROLL", region: "Libertador General Bernardo O'Higgins", comuna: "Rancagua", address: "Paseo Independencia 620", base_price: 4100, quantity: "Mechada & Queso Apanado", is_healthy_option: false, rating: 4.6, latitude: -34.1708, longitude: -70.7444 },
+      { id: 42, name: "Completos El Cobre", category: "COMPLETO", region: "Libertador General Bernardo O'Higgins", comuna: "Rancagua", address: "Calle Brasil 820", base_price: 2600, quantity: "Italiano Rancagüino", is_healthy_option: false, rating: 4.7, latitude: -34.1680, longitude: -70.7410 },
+      { id: 43, name: "Sopaipillas Plaza de los Héroes", category: "SOPAIPILLA", region: "Libertador General Bernardo O'Higgins", comuna: "Rancagua", address: "Plaza de los Héroes", base_price: 500, quantity: "Sopaipas Calientes", is_healthy_option: false, rating: 4.8, latitude: -34.1700, longitude: -70.7405 },
+
+      // === 9. MAULE ===
+      { id: 44, name: "Talca Handroll Corner", category: "HANDROLL", region: "Maule", comuna: "Talca", address: "1 Sur 1340", base_price: 3900, quantity: "Salmón Spicy Champiñón", is_healthy_option: false, rating: 4.7, latitude: -35.4264, longitude: -71.6554 },
+      { id: 45, name: "Completos Talca Vapor", category: "COMPLETO", region: "Maule", comuna: "Talca", address: "5 Oriente con 1 Sur", base_price: 2200, quantity: "Completo Mojado Tradicional", is_healthy_option: false, rating: 4.8, latitude: -35.4260, longitude: -71.6630 },
+      { id: 46, name: "Sopaipillas Plaza Talca", category: "SOPAIPILLA", region: "Maule", comuna: "Talca", address: "1 Oriente con 1 Sur", base_price: 500, quantity: "Sopaipa con Mostaza", is_healthy_option: false, rating: 4.8, latitude: -35.4270, longitude: -71.6680 },
+      { id: 47, name: "Curicó Roll Express", category: "HANDROLL", region: "Maule", comuna: "Curicó", address: "Calle Prat 450", base_price: 3800, quantity: "Camarón Ciboulette", is_healthy_option: false, rating: 4.6, latitude: -34.9850, longitude: -71.2390 },
+
+      // === 10. ÑUBLE ===
+      { id: 48, name: "Chillán Rolls", category: "HANDROLL", region: "Ñuble", comuna: "Chillán", address: "Constitución 550", base_price: 3800, quantity: "Pollo Crispy Salsa Dulce", is_healthy_option: false, rating: 4.7, latitude: -36.6067, longitude: -72.1034 },
+      { id: 49, name: "Completos Mercado Chillán", category: "COMPLETO", region: "Ñuble", comuna: "Chillán", address: "Mercado Techado Chillán", base_price: 2400, quantity: "Italiano con Longaniza Chillaneja", is_healthy_option: false, rating: 4.9, latitude: -36.6090, longitude: -72.1010 },
+      { id: 50, name: "Sopaipillas de la Estación Chillán", category: "SOPAIPILLA", region: "Ñuble", comuna: "Chillán", address: "Estación de Trenes", base_price: 500, quantity: "Sopaipillas con Pebre", is_healthy_option: false, rating: 4.8, latitude: -36.6040, longitude: -72.1120 },
+
+      // === 11. BIOBÍO ===
+      { id: 51, name: "Conce Roll UdeC Promo Alumno", category: "HANDROLL", region: "Biobío", comuna: "Concepción", address: "Plaza Perú 120", base_price: 2800, quantity: "Handroll Universitario + Jugo", is_healthy_option: false, rating: 4.9, latitude: -36.8270, longitude: -73.0503 },
+      { id: 52, name: "El Bajón de la UdeC", category: "COMPLETO", region: "Biobío", comuna: "Concepción", address: "Víctor Lamas 980", base_price: 2200, quantity: "Italiano Universitario", is_healthy_option: false, rating: 4.8, latitude: -36.8310, longitude: -73.0410 },
+      { id: 53, name: "Sopaipas Callejeras UdeC", category: "SOPAIPILLA", region: "Biobío", comuna: "Concepción", address: "Barros Arana con Aníbal Pinto", base_price: 500, quantity: "Fritas con Ají Verde", is_healthy_option: false, rating: 4.8, latitude: -36.8275, longitude: -73.0515 },
+      { id: 54, name: "Conce Veggie Rolls", category: "HANDROLL", region: "Biobío", comuna: "Concepción", address: "O'Higgins 740", base_price: 3600, quantity: "Roll Palta Champiñón + Agua", is_healthy_option: true, rating: 4.9, latitude: -36.8280, longitude: -73.0490 },
+
+      // === 12. LA ARAUCANÍA ===
+      { id: 55, name: "Araucanía Handroll Fit", category: "HANDROLL", region: "La Araucanía", comuna: "Temuco", address: "Av. Alemania 0890", base_price: 4400, quantity: "Salmón Grill & Quinoa", is_healthy_option: true, rating: 4.8, latitude: -38.7359, longitude: -72.5904 },
+      { id: 56, name: "Completos UFRO Temuco", category: "COMPLETO", region: "La Araucanía", comuna: "Temuco", address: "Av. Francisco Salazar 01145", base_price: 2300, quantity: "Italiano Estudiante UFRO", is_healthy_option: false, rating: 4.8, latitude: -38.7485, longitude: -72.6165 },
+      { id: 57, name: "Sopaipillas Sureñas Feria Pinto", category: "SOPAIPILLA", region: "La Araucanía", comuna: "Temuco", address: "Feria Pinto", base_price: 600, quantity: "Triangular Sureña con Pebre", is_healthy_option: false, rating: 4.9, latitude: -38.7310, longitude: -72.5830 },
+      { id: 58, name: "Volcán Roll Pucón", category: "HANDROLL", region: "La Araucanía", comuna: "Pucón", address: "Av. O'Higgins 420", base_price: 5200, quantity: "Salmón Patagónico Eneldo", is_healthy_option: false, rating: 4.9, latitude: -39.2780, longitude: -71.9740 },
+
+      // === 13. LOS RÍOS ===
+      { id: 59, name: "Valdivia River Rolls", category: "HANDROLL", region: "Los Ríos", comuna: "Valdivia", address: "Costanera Arturo Prat 450", base_price: 4500, quantity: "Camarón Panko Cerveza", is_healthy_option: false, rating: 4.8, latitude: -39.8142, longitude: -73.2459 },
+      { id: 60, name: "Completos Fluviales Valdivia", category: "COMPLETO", region: "Los Ríos", comuna: "Valdivia", address: "Calle Camilo Henríquez 310", base_price: 2600, quantity: "Italiano del Sur", is_healthy_option: false, rating: 4.7, latitude: -39.8150, longitude: -73.2440 },
+      { id: 61, name: "Sopaipas Costanera Valdivia", category: "SOPAIPILLA", region: "Los Ríos", comuna: "Valdivia", address: "Feria Fluvial", base_price: 600, quantity: "Sopaipillas de Calabaza", is_healthy_option: false, rating: 4.9, latitude: -39.8130, longitude: -73.2470 },
+
+      // === 14. LOS LAGOS ===
+      { id: 62, name: "Seno Reloncaví Rolls", category: "HANDROLL", region: "Los Lagos", comuna: "Puerto Montt", address: "Antonio Varas 380", base_price: 4600, quantity: "Salmón Fresco Austral", is_healthy_option: false, rating: 4.9, latitude: -41.4693, longitude: -72.9424 },
+      { id: 63, name: "Completos Plaza Puerto Montt", category: "COMPLETO", region: "Los Lagos", comuna: "Puerto Montt", address: "Urmeneta 520", base_price: 2700, quantity: "Italiano Patagónico", is_healthy_option: false, rating: 4.8, latitude: -41.4710, longitude: -72.9400 },
+      { id: 64, name: "Sopaipillas de Angelmó", category: "SOPAIPILLA", region: "Los Lagos", comuna: "Puerto Montt", address: "Caleta Angelmó", base_price: 700, quantity: "Sopaipilla con Pebre de Cochayuyo", is_healthy_option: false, rating: 4.9, latitude: -41.4820, longitude: -72.9610 },
+      { id: 65, name: "Lago Llanquihue Rolls", category: "HANDROLL", region: "Los Lagos", comuna: "Puerto Varas", address: "San Pedro 210", base_price: 4900, quantity: "Salmón Gravlax Palta", is_healthy_option: false, rating: 4.8, latitude: -41.3190, longitude: -72.9850 },
+
+      // === 15. AYSÉN ===
+      { id: 66, name: "Patagonia Roll Coyhaique", category: "HANDROLL", region: "Aysén", comuna: "Coyhaique", address: "Plaza de Armas 110", base_price: 5200, quantity: "Cordero Glaseado Palta", is_healthy_option: false, rating: 4.8, latitude: -45.5712, longitude: -72.0685 },
+      { id: 67, name: "Completos del Frío Coyhaique", category: "COMPLETO", region: "Aysén", comuna: "Coyhaique", address: "Calle Condell 240", base_price: 2900, quantity: "Italiano con Chucrut", is_healthy_option: false, rating: 4.7, latitude: -45.5720, longitude: -72.0670 },
+      { id: 68, name: "Sopaipillas Patagónicas", category: "SOPAIPILLA", region: "Aysén", comuna: "Coyhaique", address: "Calle Prat con Bilbao", base_price: 700, quantity: "Sopaipillas Fritas Caseras", is_healthy_option: false, rating: 4.9, latitude: -45.5700, longitude: -72.0690 },
+
+      // === 16. MAGALLANES Y LA ANTÁRTICA CHILENA ===
+      { id: 69, name: "Fin del Mundo Handrolls", category: "HANDROLL", region: "Magallanes", comuna: "Punta Arenas", address: "Costanera 1280", base_price: 5900, quantity: "Centolla Magallánica", is_healthy_option: false, rating: 4.9, latitude: -53.1638, longitude: -70.9171 },
+      { id: 70, name: "Completos Kiosko Roca", category: "COMPLETO", region: "Magallanes", comuna: "Punta Arenas", address: "Roca 875", base_price: 2500, quantity: "Choripán / Completo Austral", is_healthy_option: false, rating: 4.9, latitude: -53.1625, longitude: -70.9080 },
+      { id: 71, name: "Sopaipillas del Estrecho", category: "SOPAIPILLA", region: "Magallanes", comuna: "Punta Arenas", address: "Av. Colón con Bories", base_price: 800, quantity: "Sopaipillas con Pebre Picante", is_healthy_option: false, rating: 4.8, latitude: -53.1610, longitude: -70.9100 },
+
+      // === COBERTURA NACIONAL VEGGIE / ALTERNATIVA SANA (TODAS LAS 16 REGIONES) ===
+      // Arica y Parinacota
+      { id: 72, name: "BioRoll Vegano Chinchorro", category: "HANDROLL", region: "Arica y Parinacota", comuna: "Arica", address: "Av. Las Dunas 450", base_price: 3800, quantity: "Tofu Marinado, Palta & Sésamo", is_healthy_option: true, rating: 4.9, latitude: -18.4590, longitude: -70.3010 },
+      { id: 73, name: "Completo Veggie Morro", category: "COMPLETO", region: "Arica y Parinacota", comuna: "Arica", address: "Calle Bolognesi 230", base_price: 2500, quantity: "Salchicha NotCo + Palta Natural", is_healthy_option: true, rating: 4.8, latitude: -18.4770, longitude: -70.3195 },
+
+      // Tarapacá
+      { id: 74, name: "Cavancha Green Handroll", category: "HANDROLL", region: "Tarapacá", comuna: "Iquique", address: "Av. Diego Portales 1120", base_price: 3900, quantity: "Roll Vegetal Champiñón Salteado", is_healthy_option: true, rating: 4.8, latitude: -20.2220, longitude: -70.1420 },
+      { id: 75, name: "El Rincón Vegano Iquique", category: "COMPLETO", region: "Tarapacá", comuna: "Iquique", address: "Calle Serrano 480", base_price: 2800, quantity: "Completo Italiano con Mayo Vegana", is_healthy_option: true, rating: 4.9, latitude: -20.2140, longitude: -70.1530 },
+
+      // Antofagasta
+      { id: 76, name: "Antofa Veggie Handroll", category: "HANDROLL", region: "Antofagasta", comuna: "Antofagasta", address: "Av. Angamos 890", base_price: 4100, quantity: "Roll Tofu Crocante & Palta Hass", is_healthy_option: true, rating: 4.8, latitude: -23.6620, longitude: -70.4020 },
+      { id: 77, name: "Completo NotCo Balneario", category: "COMPLETO", region: "Antofagasta", comuna: "Antofagasta", address: "Av. Grecia 1250", base_price: 2900, quantity: "Vienesa NotMeat, Tomate & Palta", is_healthy_option: true, rating: 4.9, latitude: -23.6650, longitude: -70.4050 },
+      { id: 78, name: "Oasis Verde Calama", category: "HANDROLL", region: "Antofagasta", comuna: "Calama", address: "Av. Granaderos 2800", base_price: 3900, quantity: "Roll Integral Champiñón Palta", is_healthy_option: true, rating: 4.7, latitude: -22.4510, longitude: -68.9240 },
+
+      // Atacama
+      { id: 79, name: "Copiapó Verde Handroll", category: "HANDROLL", region: "Atacama", comuna: "Copiapó", address: "Calle Atacama 630", base_price: 3700, quantity: "Palta, Pepino & Tofu Crispy", is_healthy_option: true, rating: 4.8, latitude: -27.3650, longitude: -70.3340 },
+      { id: 80, name: "La Picá Sana Atacama", category: "COMPLETO", region: "Atacama", comuna: "Copiapó", address: "Calle Rodríguez 780", base_price: 2600, quantity: "Completo Soja con Pan Integral", is_healthy_option: true, rating: 4.8, latitude: -27.3670, longitude: -70.3310 },
+
+      // Coquimbo
+      { id: 81, name: "La Serena Veggie Roll", category: "HANDROLL", region: "Coquimbo", comuna: "La Serena", address: "Av. Balmaceda 1540", base_price: 3900, quantity: "Handroll Palta, Espárrago & Sésamo", is_healthy_option: true, rating: 4.9, latitude: -29.9120, longitude: -71.2510 },
+      { id: 82, name: "Completo NotHotDog Coquimbo", category: "COMPLETO", region: "Coquimbo", comuna: "Coquimbo", address: "Aldunate 840", base_price: 2700, quantity: "Vienesa Vegetal con Palta Fresca", is_healthy_option: true, rating: 4.8, latitude: -29.9540, longitude: -71.3390 },
+
+      // Valparaíso
+      { id: 83, name: "Verde Alegre Cerro Alegre", category: "HANDROLL", region: "Valparaíso", comuna: "Valparaíso", address: "Calle Almirante Montt 310", base_price: 4300, quantity: "Roll Veggie Quinoa & Verduras Grill", is_healthy_option: true, rating: 4.9, latitude: -33.0430, longitude: -71.6270 },
+      { id: 84, name: "Completo Veggie Valpo Puerto", category: "COMPLETO", region: "Valparaíso", comuna: "Valparaíso", address: "Plaza Sotomayor 45", base_price: 2700, quantity: "Italiano Base Legumbres & Palta", is_healthy_option: true, rating: 4.8, latitude: -33.0390, longitude: -71.6285 },
+
+      // Metropolitana
+      { id: 85, name: "Veggie Roll Plaza Ñuñoa", category: "HANDROLL", region: "Metropolitana de Santiago", comuna: "Ñuñoa", address: "Plaza Ñuñoa 120", base_price: 3900, quantity: "Roll Tofu Teriyaki & Palta", is_healthy_option: true, rating: 4.9, latitude: -33.4540, longitude: -70.5980 },
+      { id: 86, name: "NotCompleto Santiago Centro", category: "COMPLETO", region: "Metropolitana de Santiago", comuna: "Santiago", address: "Calle Huérfanos 810", base_price: 2900, quantity: "Italiano NotDog con Mayo Vegana Casera", is_healthy_option: true, rating: 4.9, latitude: -33.4385, longitude: -70.6480 },
+
+      // O'Higgins
+      { id: 87, name: "Rancagua Veggie Rolls", category: "HANDROLL", region: "Libertador General Bernardo O'Higgins", comuna: "Rancagua", address: "Av. Millán 410", base_price: 3700, quantity: "Champiñones al Ajillo & Palta", is_healthy_option: true, rating: 4.8, latitude: -34.1730, longitude: -70.7390 },
+      { id: 88, name: "Completo Verde El Cobre", category: "COMPLETO", region: "Libertador General Bernardo O'Higgins", comuna: "Rancagua", address: "Campos 320", base_price: 2500, quantity: "Salchicha Tofu Italiano Doble Palta", is_healthy_option: true, rating: 4.8, latitude: -34.1670, longitude: -70.7420 },
+
+      // Maule
+      { id: 89, name: "Talca Green Handrolls", category: "HANDROLL", region: "Maule", comuna: "Talca", address: "2 Sur 950", base_price: 3600, quantity: "Roll Vegetal Tofu & Champiñón", is_healthy_option: true, rating: 4.8, latitude: -35.4280, longitude: -71.6620 },
+      { id: 90, name: "Completo Mojado Veggie Talca", category: "COMPLETO", region: "Maule", comuna: "Talca", address: "1 Sur con 8 Oriente", base_price: 2400, quantity: "Mojado al Vapor 100% Vegetal", is_healthy_option: true, rating: 4.9, latitude: -35.4255, longitude: -71.6580 },
+
+      // Ñuble
+      { id: 91, name: "Chillán Veggie Rolls", category: "HANDROLL", region: "Ñuble", comuna: "Chillán", address: "Av. Libertad 620", base_price: 3500, quantity: "Roll Tofu Marinado & Semillas Zapallo", is_healthy_option: true, rating: 4.8, latitude: -36.6080, longitude: -72.1020 },
+      { id: 92, name: "Completo Verde Mercado Chillán", category: "COMPLETO", region: "Ñuble", comuna: "Chillán", address: "5 de Abril 480", base_price: 2400, quantity: "Vienesa de Soya & Palta Hass", is_healthy_option: true, rating: 4.8, latitude: -36.6095, longitude: -72.0990 },
+
+      // Biobío
+      { id: 93, name: "Biobío Fit Completo UdeC", category: "COMPLETO", region: "Biobío", comuna: "Concepción", address: "Edmundo Larenas 210", base_price: 2500, quantity: "Completo NotMeat Estudiante Fit", is_healthy_option: true, rating: 4.9, latitude: -36.8300, longitude: -73.0400 },
+
+      // La Araucanía
+      { id: 94, name: "UFRO Veggie Temuco", category: "COMPLETO", region: "La Araucanía", comuna: "Temuco", address: "Uruguay 0280", base_price: 2400, quantity: "Italiano NotDog con Mayo de Albahaca", is_healthy_option: true, rating: 4.8, latitude: -38.7490, longitude: -72.6150 },
+      { id: 95, name: "Sopaipas Integrales Feria Pinto", category: "SOPAIPILLA", region: "La Araucanía", comuna: "Temuco", address: "Feria Pinto Local 32", base_price: 600, quantity: "Zapallo Camote al Horno con Pebre", is_healthy_option: true, rating: 4.9, latitude: -38.7305, longitude: -72.5840 },
+
+      // Los Ríos
+      { id: 96, name: "Valdivia Veggie Rolls", category: "HANDROLL", region: "Los Ríos", comuna: "Valdivia", address: "Isla Teja Los Laureles 075", base_price: 4100, quantity: "Roll Quinoa, Palta & Champiñones Ostra", is_healthy_option: true, rating: 4.9, latitude: -39.8080, longitude: -73.2530 },
+      { id: 97, name: "Completo Fluvial Verde Valdivia", category: "COMPLETO", region: "Los Ríos", comuna: "Valdivia", address: "Picarte 560", base_price: 2600, quantity: "Vienesa de Soya, Chucrut & Palta", is_healthy_option: true, rating: 4.8, latitude: -39.8170, longitude: -73.2420 },
+
+      // Los Lagos
+      { id: 98, name: "Puerto Montt Veggie Rolls", category: "HANDROLL", region: "Los Lagos", comuna: "Puerto Montt", address: "Guillermo Gallardo 290", base_price: 4200, quantity: "Roll Tofu Ahumado Palta & Ciboulette", is_healthy_option: true, rating: 4.8, latitude: -41.4720, longitude: -72.9380 },
+      { id: 99, name: "Puerto Varas Green Handroll", category: "HANDROLL", region: "Los Lagos", comuna: "Puerto Varas", address: "Santa Rosa 340", base_price: 4500, quantity: "Roll Verduras Salteadas al Sésamo", is_healthy_option: true, rating: 4.9, latitude: -41.3200, longitude: -72.9840 },
+      { id: 100, name: "Completo Austral Veggie", category: "COMPLETO", region: "Los Lagos", comuna: "Puerto Montt", address: "Calle Rancagua 160", base_price: 2700, quantity: "Italiano NotDog con Palta Hass del Sur", is_healthy_option: true, rating: 4.8, latitude: -41.4705, longitude: -72.9415 },
+
+      // Aysén
+      { id: 101, name: "Coyhaique Veggie Handroll", category: "HANDROLL", region: "Aysén", comuna: "Coyhaique", address: "Calle Dussen 310", base_price: 4600, quantity: "Roll Hongos Morillas & Palta", is_healthy_option: true, rating: 4.9, latitude: -45.5725, longitude: -72.0660 },
+      { id: 102, name: "Completo Verde de la Patagonia", category: "COMPLETO", region: "Aysén", comuna: "Coyhaique", address: "Moraleda 480", base_price: 2900, quantity: "Italiano Vegetal con Pan Casero", is_healthy_option: true, rating: 4.8, latitude: -45.5708, longitude: -72.0710 },
+
+      // Magallanes
+      { id: 103, name: "Punta Arenas Green Roll", category: "HANDROLL", region: "Magallanes", comuna: "Punta Arenas", address: "Calle José Nogueira 1180", base_price: 4800, quantity: "Roll Tofu Marinado & Palta Austral", is_healthy_option: true, rating: 4.9, latitude: -53.1645, longitude: -70.9120 },
+      { id: 104, name: "Completo NotCo Austral", category: "COMPLETO", region: "Magallanes", comuna: "Punta Arenas", address: "Plaza Muñoz Gamero 750", base_price: 2800, quantity: "Italiano con NotMeat & Mayo Vegana", is_healthy_option: true, rating: 4.9, latitude: -53.1630, longitude: -70.9095 }
+    ];
+
+    // 4. MAPA LEAFLET
+    const map = L.map('map', {
+      zoomControl: false,
+      attributionControl: true
+    }).setView([-33.4489, -70.6693], 12);
+
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; SalvaBajón Chile',
+      maxZoom: 19
+    }).addTo(map);
+
+    const markersGroup = L.featureGroup().addTo(map);
+    let studentCircleLayer = null;
+    let activeMarkerPin = null;
+
+    // Estado reactivo
+    const filters = {
+      category: 'ALL',
+      max_price: 10000,
+      region: 'all',
+      comuna: 'all',
+      is_healthy: false,
+      student_mode: false
+    };
+
+    // 5. CÁLCULO DE DISTANCIA (Fórmula de Haversine en metros)
+    function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371e3; // Radio de la Tierra en metros
+      const phi1 = lat1 * Math.PI / 180;
+      const phi2 = lat2 * Math.PI / 180;
+      const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+      const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+
+      const a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) +
+                Math.cos(phi1) * Math.cos(phi2) *
+                Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    // 6. GENERACIÓN DE PINES
+    function createMarkerIcon(category, isHealthy) {
+      let iconClass = "fa-fish";
+      let pinClass = "pin-handroll";
+      let pulseClass = "pulse-handroll";
+
+      if (isHealthy) {
+        iconClass = "fa-leaf";
+        pinClass = "pin-healthy";
+        pulseClass = "pulse-healthy";
+      } else if (category === "COMPLETO") {
+        iconClass = "fa-hotdog";
+        pinClass = "pin-completo";
+        pulseClass = "pulse-completo";
+      } else if (category === "SOPAIPILLA") {
+        iconClass = "fa-cookie-bite";
+        pinClass = "pin-sopaipilla";
+        pulseClass = "pulse-sopaipilla";
+      }
+
+      return L.divIcon({
+        className: 'custom-leaflet-div-icon',
+        html: `
+          <div class="relative flex items-center justify-center">
+            <div class="pulse-ring ${pulseClass}"></div>
+            <div class="custom-marker-pin ${pinClass}">
+              <i class="fa-solid ${iconClass} text-xs"></i>
+            </div>
+          </div>
+        `,
+        iconSize: [42, 42],
+        iconAnchor: [21, 21]
+      });
+    }
+
+    // 7. RENDERIZACIÓN Y MANEJO DE EMPTY STATE ELEGANTE
+    const emptyStateContainer = document.getElementById('emptyStateContainer');
+    const emptyStateTitle = document.getElementById('emptyStateTitle');
+    const emptyStateSubtitle = document.getElementById('emptyStateSubtitle');
+    const emptyStateEmoji = document.getElementById('emptyStateEmoji');
+    const emptyStateIconBox = document.getElementById('emptyStateIconBox');
+
+    function updateEmptyState(totalCount) {
+      if (totalCount === 0) {
+        // Personalizar mensajes dinámicamente según filtros activos
+        if (filters.is_healthy) {
+          const locationLabel = filters.comuna !== 'all' 
+            ? `en ${filters.comuna}` 
+            : (filters.region !== 'all' ? `en la región de ${filters.region}` : 'en esta región');
+          
+          emptyStateEmoji.innerText = "🥦";
+          emptyStateIconBox.className = "w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-3xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-3xl sm:text-4xl shadow-inner mb-4 border border-emerald-100 ring-4 ring-emerald-50/50";
+          emptyStateTitle.innerText = `¡Ups! Aún no tenemos opciones vegetarianas mapeadas ${locationLabel}. 🥦`;
+          emptyStateSubtitle.innerText = "¿Conoces algún carrito o local aquí? ¡Sé el primero en agregarlo y ayuda a la comunidad!";
+        } else if (filters.student_mode) {
+          emptyStateEmoji.innerText = "🎓";
+          emptyStateIconBox.className = "w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-3xl bg-blue-50 text-blue-600 flex items-center justify-center text-3xl sm:text-4xl shadow-inner mb-4 border border-blue-100 ring-4 ring-blue-50/50";
+          emptyStateTitle.innerText = "¡Ups! Aún no encontramos promos estudiantiles < $3.000 aquí. 🎓";
+          emptyStateSubtitle.innerText = "¿Conoces alguna picada económica para estudiantes? ¡Suma tu picada para salvar a tus compañeros!";
+        } else {
+          emptyStateEmoji.innerText = "🥟";
+          emptyStateIconBox.className = "w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center text-3xl sm:text-4xl shadow-inner mb-4 border border-amber-100 ring-4 ring-amber-50/50";
+          emptyStateTitle.innerText = "¡Ups! Aún no tenemos locales con estos filtros aquí. 🥢";
+          emptyStateSubtitle.innerText = "¿Conoces algún carrito o local aquí? ¡Sé el primero en agregarlo y ayuda a la comunidad!";
+        }
+        emptyStateContainer.classList.remove('hidden');
+      } else {
+        emptyStateContainer.classList.add('hidden');
+      }
+    }
+
+    function renderSpots(spots) {
+      markersGroup.clearLayers();
+      document.getElementById('resultsCount').innerText = `${spots.length} locales`;
+      updateEmptyState(spots.length);
+
+      if (spots.length === 0) {
+        closeSpotCard();
+        return;
+      }
+
+      spots.forEach(spot => {
+        const marker = L.marker([spot.latitude, spot.longitude], {
+          icon: createMarkerIcon(spot.category, spot.is_healthy_option && filters.is_healthy)
+        });
+
+        marker.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          openSpotCard(spot, e.target);
+        });
+
+        markersGroup.addLayer(marker);
+      });
+    }
+
+    async function fetchSpotsFromApiOrLocal() {
+      // 1. Intento de llamada a la API Django REST
+      const params = new URLSearchParams();
+      if (filters.category !== 'ALL') params.append('category', filters.category);
+      if (filters.student_mode) {
+        params.append('student_mode', 'true');
+      } else if (filters.max_price < 10000) {
+        params.append('max_price', filters.max_price);
+      }
+      if (filters.region !== 'all') params.append('region', filters.region);
+      if (filters.comuna !== 'all') params.append('comuna', filters.comuna);
+      if (filters.is_healthy) params.append('healthy', 'true');
+
+      try {
+        const res = await fetch(`/api/food-spots/?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          return Array.isArray(data) ? data : [];
+        }
+        throw new Error('API offline');
+      } catch (e) {
+        // 2. Fallback automático en cliente (ideal para file:/// sin servidor Django activo)
+        return foodSpotsData.filter(spot => {
+          const matchCategory = (filters.category === 'ALL') || (spot.category === filters.category);
+          const matchPrice = filters.student_mode 
+            ? (spot.base_price <= 3000) 
+            : (spot.base_price <= filters.max_price);
+          const matchRegion = (filters.region === 'all') || (spot.region === filters.region);
+          const matchComuna = (filters.comuna === 'all') || (spot.comuna.toLowerCase() === filters.comuna.toLowerCase());
+          const matchHealthy = !filters.is_healthy || (spot.is_healthy_option === true);
+
+          return matchCategory && matchPrice && matchRegion && matchComuna && matchHealthy;
+        });
+      }
+    }
+
+    async function applyFilters() {
+      closeSpotCard();
+      const filtered = await fetchSpotsFromApiOrLocal();
+      renderSpots(filtered);
+
+      // Si no estamos en modo estudiante con círculo propio, adaptamos bounds
+      if (!filters.student_mode && markersGroup.getLayers().length > 0) {
+        map.flyToBounds(markersGroup.getBounds().pad(0.12), { duration: 0.8 });
+      }
+    }
+
+    // 8. LOGICA 'MODO ESTUDIANTE' UNIVERSAL (KILLER FEATURE 2)
+    const btnStudentMode = document.getElementById('btnStudentMode');
+    const studentModeBanner = document.getElementById('studentModeBanner');
+    const btnExitStudent = document.getElementById('btnExitStudent');
+    const priceSliderContainer = document.getElementById('priceSliderContainer');
+
+    function activateStudentModeAtLocation(userLat, userLng, nearestCampusName) {
+      filters.student_mode = true;
+      filters.is_healthy = false;
+      document.getElementById('toggleHealthy').checked = false;
+
+      // Actualizar UI
+      btnStudentMode.classList.add('ring-4', 'ring-blue-300', 'bg-blue-800');
+      studentModeBanner.classList.remove('hidden');
+      studentModeBanner.querySelector('span').innerText = `Zona: ${nearestCampusName} (< $3.000)`;
+      priceSliderContainer.classList.add('opacity-40', 'pointer-events-none');
+
+      // Dibujar radio de 1 km
+      if (studentCircleLayer) map.removeLayer(studentCircleLayer);
+      studentCircleLayer = L.circle([userLat, userLng], {
+        radius: 1000,
+        color: '#2563eb',
+        fillColor: '#3b82f6',
+        fillOpacity: 0.15,
+        weight: 2,
+        dashArray: '6, 6'
+      }).addTo(map);
+
+      // Zoom automático a la zona de estudio (< 1 km)
+      map.flyTo([userLat, userLng], 15, { duration: 1.2 });
+      applyFilters();
+    }
+
+    function deactivateStudentMode() {
+      filters.student_mode = false;
+      btnStudentMode.classList.remove('ring-4', 'ring-blue-300', 'bg-blue-800');
+      studentModeBanner.classList.add('hidden');
+      priceSliderContainer.classList.remove('opacity-40', 'pointer-events-none');
+
+      if (studentCircleLayer) {
+        map.removeLayer(studentCircleLayer);
+        studentCircleLayer = null;
+      }
+      applyFilters();
+    }
+
+    btnStudentMode.addEventListener('click', () => {
+      if (filters.student_mode) {
+        deactivateStudentMode();
+        return;
+      }
+
+      // 1. Geolocalizar usuario
+      if (navigator.geolocation) {
+        btnStudentMode.querySelector('i').className = "fa-solid fa-spinner fa-spin";
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            btnStudentMode.querySelector('i').className = "fa-solid fa-graduation-cap";
+            const userLat = pos.coords.latitude;
+            const userLng = pos.coords.longitude;
+
+            // Verificar si está a menos de 1000m de alguna sede
+            let nearestCampus = null;
+            let minDistance = Infinity;
+
+            sedesUniversitarias.forEach(sede => {
+              const dist = calculateDistanceMeters(userLat, userLng, sede.lat, sede.lng);
+              if (dist < minDistance) {
+                minDistance = dist;
+                nearestCampus = sede;
+              }
+            });
+
+            // Si está a < 1 km de una sede, usamos su ubicación; si no, viajamos a la sede más cercana
+            if (minDistance <= 1200) {
+              activateStudentModeAtLocation(userLat, userLng, nearestCampus.nombre);
+            } else {
+              // Simulación/Fallback inteligente: vuela al campus de referencia de su ciudad o a Barrio Universitario
+              activateStudentModeAtLocation(nearestCampus.lat, nearestCampus.lng, nearestCampus.nombre);
+            }
+          },
+          (err) => {
+            // Si el usuario rechaza GPS, activamos el campus de referencia central (U. de Chile / Beauchef)
+            btnStudentMode.querySelector('i').className = "fa-solid fa-graduation-cap";
+            const defaultCampus = sedesUniversitarias[0];
+            activateStudentModeAtLocation(defaultCampus.lat, defaultCampus.lng, defaultCampus.nombre);
+          }
+        );
+      } else {
+        const defaultCampus = sedesUniversitarias[0];
+        activateStudentModeAtLocation(defaultCampus.lat, defaultCampus.lng, defaultCampus.nombre);
+      }
+    });
+
+    btnExitStudent.addEventListener('click', deactivateStudentMode);
+
+    // 9. LOGICA 'ALTERNATIVA SANA' & 'VEGETARIANO' (KILLER FEATURE 1)
+    const toggleHealthy = document.getElementById('toggleHealthy');
+    const btnFilterVegetariano = document.getElementById('btnFilterVegetariano');
+
+    function syncVegetarianoButton(isActive) {
+      if (!btnFilterVegetariano) return;
+      if (isActive) {
+        btnFilterVegetariano.className = "py-2.5 px-3 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-2 bg-emerald-600 text-white border-emerald-700 shadow-md active:scale-98 col-span-2";
+      } else {
+        btnFilterVegetariano.className = "py-2.5 px-3 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-2 bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 col-span-2 shadow-sm active:scale-98";
+      }
+    }
+
+    if (btnFilterVegetariano) {
+      btnFilterVegetariano.addEventListener('click', () => {
+        const willBeActive = !filters.is_healthy;
+        filters.is_healthy = willBeActive;
+        toggleHealthy.checked = willBeActive;
+        syncVegetarianoButton(willBeActive);
+        applyFilters();
+      });
+    }
+
+    toggleHealthy.addEventListener('change', (e) => {
+      filters.is_healthy = e.target.checked;
+      syncVegetarianoButton(e.target.checked);
+      applyFilters();
+    });
+
+    // 10. SELECTORES EN CASCADA
+    const regionSelect = document.getElementById('regionSelect');
+    const comunaSelect = document.getElementById('comunaSelect');
+
+    regionesChile.forEach(reg => {
+      const opt = document.createElement('option');
+      opt.value = reg.nombre;
+      opt.textContent = reg.nombre;
+      regionSelect.appendChild(opt);
+    });
+
+    function updateComunasDropdown(regionNombre) {
+      comunaSelect.innerHTML = '<option value="all">📍 Todas las Comunas</option>';
+      if (regionNombre === 'all') {
+        const allComunas = [];
+        regionesChile.forEach(r => allComunas.push(...r.comunas));
+        [...new Set(allComunas)].sort().forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c;
+          opt.textContent = c;
+          comunaSelect.appendChild(opt);
+        });
+      } else {
+        const reg = regionesChile.find(r => r.nombre === regionNombre);
+        if (reg) {
+          reg.comunas.sort().forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = c;
+            comunaSelect.appendChild(opt);
+          });
+        }
+      }
+    }
+
+    updateComunasDropdown('all');
+
+    regionSelect.addEventListener('change', (e) => {
+      filters.region = e.target.value;
+      filters.comuna = 'all';
+      updateComunasDropdown(e.target.value);
+      applyFilters();
+    });
+
+    comunaSelect.addEventListener('change', (e) => {
+      filters.comuna = e.target.value;
+      applyFilters();
+    });
+
+    // 11. CATEGORÍAS & PRECIO
+    document.querySelectorAll('.cat-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.cat-btn').forEach(b => {
+          b.classList.remove('active', 'bg-stone-900', 'text-white', 'border-stone-900');
+          b.classList.add('bg-white', 'text-stone-700', 'border-stone-200');
+        });
+
+        btn.classList.add('active', 'bg-stone-900', 'text-white', 'border-stone-900');
+        btn.classList.remove('bg-white', 'text-stone-700', 'border-stone-200');
+
+        filters.category = btn.getAttribute('data-category');
+        applyFilters();
+      });
+    });
+
+    const priceSlider = document.getElementById('priceSlider');
+    const priceDisplay = document.getElementById('priceDisplay');
+    priceSlider.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      filters.max_price = val;
+      priceDisplay.innerText = `$${val.toLocaleString('es-CL')}`;
+      applyFilters();
+    });
+
+    document.getElementById('btnResetFilters').addEventListener('click', () => {
+      filters.category = 'ALL';
+      filters.max_price = 10000;
+      filters.region = 'all';
+      filters.comuna = 'all';
+      filters.is_healthy = false;
+      deactivateStudentMode();
+
+      toggleHealthy.checked = false;
+      syncVegetarianoButton(false);
+      priceSlider.value = 10000;
+      priceDisplay.innerText = "$10.000";
+      regionSelect.value = 'all';
+      updateComunasDropdown('all');
+      comunaSelect.value = 'all';
+
+      document.querySelectorAll('.cat-btn').forEach((b, i) => {
+        if (i === 0) {
+          b.classList.add('active', 'bg-stone-900', 'text-white', 'border-stone-900');
+          b.classList.remove('bg-white', 'text-stone-700', 'border-stone-200');
+        } else {
+          b.classList.remove('active', 'bg-stone-900', 'text-white', 'border-stone-900');
+          b.classList.add('bg-white', 'text-stone-700', 'border-stone-200');
+        }
+      });
+
+      applyFilters();
+    });
+
+    // 12. TARJETA FLOTANTE INFERIOR
+    const spotCard = document.getElementById('spotCard');
+    const spotName = document.getElementById('spotName');
+    const spotAddress = document.getElementById('spotAddress');
+    const spotPrice = document.getElementById('spotPrice');
+    const spotQuantity = document.getElementById('spotQuantity');
+    const spotRating = document.getElementById('spotRating');
+    const spotCategoryBadge = document.getElementById('spotCategoryBadge');
+    const spotHealthyBadge = document.getElementById('spotHealthyBadge');
+    const spotComunaBadge = document.getElementById('spotComunaBadge');
+    const btnRouteGps = document.getElementById('btnRouteGps');
+    const btnCloseSpotCard = document.getElementById('btnCloseSpotCard');
+
+    function openSpotCard(spot, markerInstance) {
+      spotName.innerText = spot.name;
+      spotAddress.querySelector('span').innerText = `${spot.address}, ${spot.comuna}`;
+      spotPrice.innerText = `$${Number(spot.base_price).toLocaleString('es-CL')}`;
+      spotQuantity.innerText = spot.quantity;
+      spotRating.innerText = spot.rating;
+      spotComunaBadge.innerText = spot.comuna;
+
+      // Badge categoría
+      if (spot.category === 'HANDROLL') {
+        spotCategoryBadge.innerText = 'Handroll';
+        spotCategoryBadge.className = 'text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-orange-100 text-brand-700';
+      } else if (spot.category === 'COMPLETO') {
+        spotCategoryBadge.innerText = 'Completo';
+        spotCategoryBadge.className = 'text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-red-100 text-red-700';
+      } else {
+        spotCategoryBadge.innerText = 'Sopaipilla';
+        spotCategoryBadge.className = 'text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800';
+      }
+
+      // Badge Alternativa Sana
+      if (spot.is_healthy_option) {
+        spotHealthyBadge.classList.remove('hidden');
+        spotHealthyBadge.classList.add('inline-flex');
+      } else {
+        spotHealthyBadge.classList.add('hidden');
+        spotHealthyBadge.classList.remove('inline-flex');
+      }
+
+      btnRouteGps.onclick = () => {
+        const url = `https://www.google.com/maps/dir/?api=1&destination=${spot.latitude},${spot.longitude}&destination_place_id=${encodeURIComponent(spot.name)}`;
+        window.open(url, '_blank');
+      };
+
+      if (activeMarkerPin) activeMarkerPin.classList.remove('active');
+      const el = markerInstance.getElement()?.querySelector('.custom-marker-pin');
+      if (el) {
+        el.classList.add('active');
+        activeMarkerPin = el;
+      }
+
+      map.flyTo([spot.latitude - 0.005, spot.longitude], 15, { duration: 0.6 });
+      spotCard.classList.remove('hidden');
+    }
+
+    function closeSpotCard() {
+      spotCard.classList.add('hidden');
+      if (activeMarkerPin) {
+        activeMarkerPin.classList.remove('active');
+        activeMarkerPin = null;
+      }
+    }
+
+    btnCloseSpotCard.addEventListener('click', closeSpotCard);
+    map.on('click', closeSpotCard);
+
+    // Móvil y Mi Zona
+    const filterPanel = document.getElementById('filterPanel');
+    document.getElementById('btnOpenMobileFilters').addEventListener('click', () => {
+      filterPanel.classList.remove('-translate-x-full');
+    });
+    document.getElementById('btnCloseFilters').addEventListener('click', () => {
+      filterPanel.classList.add('-translate-x-full');
+    });
+    document.getElementById('btnMyLocation').addEventListener('click', () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((pos) => {
+          map.flyTo([pos.coords.latitude, pos.coords.longitude], 14);
+        });
+      }
+    });
+
+    // 13. ACCIONES DE EMPTY STATE & AGREGAR / SUGERIR LOCALES
+    const btnClearFiltersEmpty = document.getElementById('btnClearFiltersEmpty');
+    const suggestModal = document.getElementById('suggestModal');
+    const btnCloseSuggestModal = document.getElementById('btnCloseSuggestModal');
+    const suggestSpotForm = document.getElementById('suggestSpotForm');
+    const toastNotification = document.getElementById('toastNotification');
+    const toastText = document.getElementById('toastText');
+
+    function showToast(message) {
+      toastText.innerText = message;
+      toastNotification.classList.remove('hidden');
+      setTimeout(() => {
+        toastNotification.classList.add('hidden');
+      }, 4000);
+    }
+
+    // Función universal para abrir modal "Agregar / Sugerir Local"
+    function openAddSpotModal() {
+      if (filters.is_healthy) {
+        document.getElementById('newSpotHealthy').checked = true;
+      }
+      if (filters.category !== 'ALL') {
+        document.getElementById('newSpotCategory').value = filters.category;
+      }
+      suggestModal.classList.remove('hidden');
+    }
+
+    // Vincular TODOS los botones que abren el modal (Sidebar, Header Flotante, Empty State)
+    ['btnSidebarAddSpot', 'btnFloatingAddSpot', 'btnEmptyAddSpot', 'btnEmptySuggestSpot', 'btnSuggestSpot'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', openAddSpotModal);
+    });
+
+    // Botón "Quitar filtros" del Empty State
+    btnClearFiltersEmpty.addEventListener('click', () => {
+      // 1. Apagar Alternativa Sana si estaba activa
+      if (filters.is_healthy) {
+        filters.is_healthy = false;
+        document.getElementById('toggleHealthy').checked = false;
+        syncVegetarianoButton(false);
+      }
+
+      // 2. Restablecer Categoría a Todos
+      filters.category = 'ALL';
+      document.querySelectorAll('.cat-btn').forEach((b, i) => {
+        if (i === 0) {
+          b.classList.add('active', 'bg-stone-900', 'text-white', 'border-stone-900');
+          b.classList.remove('bg-white', 'text-stone-700', 'border-stone-200');
+        } else {
+          b.classList.remove('active', 'bg-stone-900', 'text-white', 'border-stone-900');
+          b.classList.add('bg-white', 'text-stone-700', 'border-stone-200');
+        }
+      });
+
+      // 3. Ajustar slider de precio si estaba restringiendo
+      if (filters.max_price < 10000 && !filters.student_mode) {
+        filters.max_price = 10000;
+        priceSlider.value = 10000;
+        priceDisplay.innerText = "$10.000";
+      }
+
+      // Si aún así no hay locales en esa comuna específica, abrir a toda la región
+      const anyInComuna = foodSpotsData.some(s => 
+        (filters.region === 'all' || s.region === filters.region) &&
+        (filters.comuna === 'all' || s.comuna.toLowerCase() === filters.comuna.toLowerCase())
+      );
+      if (!anyInComuna && filters.comuna !== 'all') {
+        filters.comuna = 'all';
+        comunaSelect.value = 'all';
+      }
+
+      applyFilters();
+    });
+
+    btnCloseSuggestModal.addEventListener('click', () => {
+      suggestModal.classList.add('hidden');
+    });
+
+    // Enviar sugerencia de nuevo local
+    suggestSpotForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('newSpotName').value.trim();
+      const category = document.getElementById('newSpotCategory').value;
+      const price = parseInt(document.getElementById('newSpotPrice').value) || 3000;
+      const address = document.getElementById('newSpotAddress').value.trim();
+      const isHealthy = document.getElementById('newSpotHealthy').checked;
+
+      const center = map.getCenter();
+      const targetRegion = filters.region !== 'all' ? filters.region : 'Metropolitana de Santiago';
+      const targetComuna = filters.comuna !== 'all' ? filters.comuna : 'Santiago';
+
+      const newSpot = {
+        id: foodSpotsData.length + 200,
+        name: name,
+        category: category,
+        region: targetRegion,
+        comuna: targetComuna,
+        address: address,
+        base_price: price,
+        quantity: "Sugerencia Comunitaria",
+        is_healthy_option: isHealthy,
+        rating: 5.0,
+        latitude: center.lat + (Math.random() - 0.5) * 0.003,
+        longitude: center.lng + (Math.random() - 0.5) * 0.003
+      };
+
+      // Agregar a los datos locales
+      foodSpotsData.unshift(newSpot);
+
+      suggestModal.classList.add('hidden');
+      suggestSpotForm.reset();
+
+      showToast(`¡Gracias! Sumamos "${name}" al radar 🚀`);
+      applyFilters();
+    });
+
+    // Render inicial
+    applyFilters();
+  </script>
+</body>
+</html>
