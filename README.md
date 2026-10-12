@@ -9,6 +9,19 @@
   <i>Handrolls, Completos Italianos, Sopaipillas y Opciones Vegetarianas en las 16 regiones de Chile.</i>
 </p>
 
+<p align="center">
+  <a href="https://github.com/PhantomSahader/bajonero/releases/latest">
+    <img src="https://img.shields.io/badge/Descargar%20APK-v1.0%20(Android%208.0+)-orange?style=for-the-badge&logo=android&logoColor=white" alt="Descargar APK" />
+  </a>
+</p>
+
+---
+
+## 📥 Descarga Directa del APK
+
+Puedes descargar e instalar la versión lista para usar en tu celular directamente desde la sección de **[Releases](https://github.com/PhantomSahader/bajonero/releases)**:
+- 📲 **[Descargar Bajonero-v1.0.apk](https://github.com/PhantomSahader/bajonero/releases/latest)** *(8.4 MB)*
+
 ---
 
 ## 🌟 Características Principales
